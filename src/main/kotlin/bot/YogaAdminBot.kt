@@ -50,20 +50,49 @@ class YogaAdminBot {
 
                 bot.sendMessage(
                     chatId = ChatId.fromId(chatId),
-                    text = getNamesFromFile(), //сюда надо вывести текущий список группы
+                    text = getNamesFromFile(), //показываем список имен в группе
                     replyMarkup = inlineKeyboardMarkup
                 )
             }//конец коллбэка groupEdit
+
+        callbackQuery(callbackData = "freezeMembership") {//коллбек freezeMembership
+            val chatId = callbackQuery.message?.chat?.id ?: return@callbackQuery
+            val name = callbackQuery.message?.chat?.firstName ?: return@callbackQuery
+            if (!getNamesFromFile().contains(name)) //если студента нет в группе
+                bot.sendMessage(chatId = ChatId.fromId(chatId),
+                    text = "У вас нет абонемента :(\nЧтобы его приобрести, обратитесь к Учителю: @ebarnaeva")
+            else { //если студент есть в группе
+                if (getDataFromFile(name, 2).toInt() >20)
+                    {
+                        bot.sendMessage(chatId = ChatId.fromId(chatId),
+                            text = "Заморозка возможна только один раз в течение месяца. " +
+                                    "\nЧтобы её оформить, обратитесь к Учителю: @ebarnaeva")
+                    } else {
+                        bot.sendMessage(chatId = ChatId.fromId(chatId),
+                            text = "Заморозка возможна только для безлимитных абонементов. " +
+                                    "\nЧтобы перейти на безлимит, обратитесь к Учителю: @ebarnaeva")
+                    }
+
+            }
+            return@callbackQuery
+        }//конец коллбека freezeMembership
 
         callbackQuery(callbackData = "myMembership") {//коллбек myMembership
             val chatId = callbackQuery.message?.chat?.id ?: return@callbackQuery
             val name = callbackQuery.message?.chat?.firstName ?: return@callbackQuery
             if (!getNamesFromFile().contains(name)) //если студента нет в группе
                 bot.sendMessage(chatId = ChatId.fromId(chatId),
-                text = "У вас нет абонемента")
-            else { //если студент есть в группе
-                bot.sendMessage(chatId = ChatId.fromId(chatId),
-                    text = "Ваш абонемент действует до ${getDataFromFile(name, 1)}, доступно ${getDataFromFile(name, 2)} занятий")
+                text = "У вас нет абонемента :(\nЧтобы его приобрести, обратитесь к Учителю: @ebarnaeva")
+            else{ //если студент есть в группе
+                if  (getDataFromFile(name, 2).toInt()>20) //если у студента безлимитный абонемент
+                {
+                    bot.sendMessage(chatId = ChatId.fromId(chatId),
+                        text = "Ваш абонемент действует до ${getDataFromFile(name, 1)}. " +
+                                "У Вас безлимитный тариф :)")
+                }else // если у студента абонемент лимитный
+                    bot.sendMessage(chatId = ChatId.fromId(chatId),
+                        text = "Ваш абонемент действует до ${getDataFromFile(name, 1)}, " +
+                                "доступно ${getDataFromFile(name, 2)} занятий")
             }
             return@callbackQuery
         }//конец коллбека myMembership
@@ -87,7 +116,6 @@ class YogaAdminBot {
         callbackQuery(callbackData = "restart") {//коллбек restart
             val chatId = callbackQuery.message?.chat?.id ?: return@callbackQuery
             bot.sendMessage(chatId = ChatId.fromId(chatId), text = "Для начала работы введите /start")
-            // надо принять строку для работы с файлом
             return@callbackQuery
         }//конец коллбека restart
 //
@@ -151,22 +179,6 @@ class YogaAdminBot {
 //                    return@launch
 //                }
 //
-//                windDirection = when (currentWeather.current.windDirection) {//переводим направление ветра на русский
-//                    "S" -> "Южный"
-//                    "N" -> "Северный"
-//                    "W" -> "Западный"
-//                    "E" -> "Восточный"
-//                    "SW" -> "Юго=Западный"
-//                    "NW" -> "Северо-Западный"
-//                    "SE" -> "Юго-Восточный"
-//                    "NE" -> "Северо-Восточный"
-//                    "SSE" -> "Юго-Юго-Восточный"
-//                    "SSW" -> "Юго-Юго-Западный"
-//                    "NNE" -> "Северо-Северо-Восточный"
-//                    "NNW" -> "Северо-Северо-Западный"
-//                    else -> { // Непереводимый вариант
-//                        currentWeather.current.windDirection
-//                    }
 //                }
 //                bot.sendMessage(//Корутина отправляет сообщение с погодой
 //                    chatId = ChatId.fromId(chatId),
