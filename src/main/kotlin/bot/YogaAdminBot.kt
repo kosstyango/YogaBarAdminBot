@@ -1,12 +1,10 @@
 package bot
-
 import com.github.kotlintelegrambot.Bot
 import com.github.kotlintelegrambot.bot
 import com.github.kotlintelegrambot.dispatch
 import com.github.kotlintelegrambot.dispatcher.*
 import com.github.kotlintelegrambot.entities.ChatId
 import com.github.kotlintelegrambot.entities.InlineKeyboardMarkup
-import com.github.kotlintelegrambot.entities.Message
 import com.github.kotlintelegrambot.entities.keyboard.InlineKeyboardButton
 import com.github.kotlintelegrambot.extensions.filters.Filter
 import java.io.BufferedReader
@@ -15,7 +13,6 @@ import java.io.File
 import java.io.FileReader
 import java.io.FileWriter
 import java.io.IOException
-
 class YogaAdminBot {
 
     fun createBot(): Bot {
@@ -55,13 +52,33 @@ class YogaAdminBot {
                         )
                     )
                 )
-
                 bot.sendMessage(
                     chatId = ChatId.fromId(chatId),
-                    text = getNamesFromFile(), //показываем список имен в группе
+                    text = "Что выбираешь, Учитель?",
                     replyMarkup = inlineKeyboardMarkup
                 )
             }//конец коллбэка groupEdit
+
+        callbackQuery(callbackData = "myMembership") {//коллбек myMembership
+            val chatId = callbackQuery.message?.chat?.id ?: return@callbackQuery
+            val name = callbackQuery.message?.chat?.firstName ?: return@callbackQuery
+            if (!getNamesFromFile().contains(name)) //если студента нет в группе
+                bot.sendMessage(chatId = ChatId.fromId(chatId),
+                    text = "У вас нет абонемента :(\nЧтобы его приобрести, обратитесь к Учителю: @ebarnaeva")
+            else { //если студент есть в группе
+                if (getDataFromFile(name, 2).toInt() >20)//если у студента безлимит
+                {
+                    bot.sendMessage(chatId = ChatId.fromId(chatId),
+                        text = "Твой абонемент действует до ${getDataFromFile(name, 1)}" +
+                                "\nБЕЗЛИМИТНЫЙ тариф - правильный выбор!")
+                } else {//если у студента НЕ безлимит
+                    bot.sendMessage(chatId = ChatId.fromId(chatId),
+                        text = "Абонемент действует до ${getDataFromFile(name, 1)}" +
+                                "\nОсталось ${getDataFromFile(name, 2)} оплаченных уроков.")
+                }
+            }
+            return@callbackQuery
+        }//конец коллбека myMembership
 
         callbackQuery(callbackData = "freezeMembership") {//коллбек freezeMembership
             val chatId = callbackQuery.message?.chat?.id ?: return@callbackQuery
@@ -80,35 +97,42 @@ class YogaAdminBot {
                             text = "Заморозка возможна только для безлимитных абонементов. " +
                                     "\nЧтобы перейти на безлимит, обратитесь к Учителю: @ebarnaeva")
                     }
-
             }
             return@callbackQuery
         }//конец коллбека freezeMembership
 
-        var userToDelete : String  = ""
+        var lastProcessedMessageId: Long = 0
+        var nameToDelete = ""
         callbackQuery(callbackData = "deleteStudent") {//коллбек deleteStudent
             val chatId = callbackQuery.message?.chat?.id ?: return@callbackQuery
-
+            lastProcessedMessageId = callbackQuery.message?.messageId!! //сохраняем номер обрабатываемого сообщения
             bot.sendMessage(chatId = ChatId.fromId(chatId),
                 text = "Введите телегам-имя йогини для удаления")
 
             message(Filter.Text) {//приём ответа от пользователя
-                userToDelete = message.text.toString() //сохраняем ответ в память
-                println("удаляем $userToDelete")//проверяем, что собираемся удалить
-            val inlineKeyboardMarkup = InlineKeyboardMarkup.create(
-                listOf(
-                    InlineKeyboardButton.CallbackData(
-                        text = "Да, верно.",
-                        callbackData = "confirmDeleting"
+                val messageId = callbackQuery.message?.messageId ?: return@message
+
+                //println("Callback deleteStudent проверяет номер сообщения: ${messageId} меньше ${lastProcessedMessageId}?")
+                if(messageId<lastProcessedMessageId) return@message //попытка предотвратить повторные обработки ответов
+                //println("Callback deleteStudent отвечает на сообщение № ${messageId}")
+
+                nameToDelete = message.text.toString()
+                //println("удаляем $nameToDelete")//проверяем, что собираемся удалить
+                val inlineKeyboardMarkup = InlineKeyboardMarkup.create(
+                    listOf(
+                        InlineKeyboardButton.CallbackData(
+                            text = "Да, верно.",
+                            callbackData = "confirmDeleting"
+                        )
                     )
                 )
-            )
-            bot.sendMessage(
-                chatId = ChatId.fromId(chatId),
-                text = "Ты выбрала удалить - ${userToDelete}, верно? \nЕсли неверно, введи имя йогини ещё раз.",
-                replyMarkup = inlineKeyboardMarkup
-            )
-        }
+                bot.sendMessage(
+                    chatId = ChatId.fromId(chatId),
+                    text = "Ты выбрала удалить - $nameToDelete, верно? \nЕсли неверно, введи имя йогини ещё раз.",
+                    replyMarkup = inlineKeyboardMarkup
+                )
+                return@message //пробуем прекратить многократную обработку сообщений
+            }
             return@callbackQuery
         }//конец коллбека deleteStudent
 
@@ -116,26 +140,28 @@ class YogaAdminBot {
         callbackQuery(callbackData = "confirmDeleting") {//коллбек confirmDeleting
             val chatId = callbackQuery.message?.chat?.id ?: return@callbackQuery
             val messageFile = "src/yogaList.txt"
-                if (!getNamesFromFile().contains(userToDelete)) { //проверяем имя наличие в файле
+            //println("Имя к проверке: $nameToDelete")
+            //println("Список: ${getNamesFromFile()}")
+
+                if (!getNamesFromFile().contains(nameToDelete)) { //проверяем имя наличие в файле
                     println("Нет такой йогини") //йогини нет в списке
                     bot.sendMessage(chatId = ChatId.fromId(chatId),
                         text = "ОШИБКА!\nНет такой йогини, проверь правильность имени")
                 } else { //Йогиня есть в списке, удаляем её из файла
                         try {
-                        println("Приступаем к удалению $userToDelete")
+                        println("Приступаем к удалению $nameToDelete")
 
                             val lines = BufferedReader(FileReader(messageFile)).readLines()
-                            println(lines) //проверяем что считалось из файла
-                            // Удаление строки, начинающейся с userToDelete
-                            val filteredLines = lines.filterNot { it.trimStart().startsWith(userToDelete) }
-                            println(filteredLines) //проверяем что считалось получилось после удаления
+                            //println(lines) //проверяем что считалось из файла
+                            // Удаление строки, начинающейся с name
+                            val filteredLines = lines.filterNot { it.trimStart().startsWith(nameToDelete) }
+                            //println(filteredLines) //проверяем что считалось получилось после удаления
                             val writer = FileWriter(messageFile)
                             filteredLines.forEach { writer.write(it + "\n") }
                             writer.close()
                         bot.sendMessage(chatId = ChatId.fromId(chatId),
                             text = "Йогиня удалена успешно.\nТеперь в твоей группе порядок!!!" +
                                     "\nДля возврата к главному меню нажми /start")
-                        userToDelete = "" //обнуляем userToDelete - для исключения повторных срабатываний
                     } catch (e: IOException) {
                         e.printStackTrace()
                         println("Ошибка при удалении строки из файла.")
@@ -144,14 +170,21 @@ class YogaAdminBot {
             return@callbackQuery
         }//конец коллбека confirmDeleting
 
-        var newUserString : String  = ""
+        var newUserString  = ""
         callbackQuery(callbackData = "addStudent") {//коллбек addStudent
             val chatId = callbackQuery.message?.chat?.id ?: return@callbackQuery
+            lastProcessedMessageId = callbackQuery.message?.messageId!! //сохраняем номер обрабатываемого сообщения
             bot.sendMessage(chatId = ChatId.fromId(chatId),
                 text = "Введи через пробел:\nТелегам-имя йогини,\nДату окончания абонемента и\nколичество оплаченных уроков")
+
+
             message(Filter.Text) {//приём ответа от пользователя
+                val messageId = callbackQuery.message?.messageId ?: return@message
+                //println("Callback addStudent отвечает на сообщение № ${messageId}")
+                if(messageId<lastProcessedMessageId) return@message //попытка предотвратить повторные обработки ответов
+
                 newUserString = message.text.toString() //сохраняем ответ в память
-                println("сохраняем $newUserString")//проверяем, что сохраняем в память
+                //println("сохраняем $newUserString")//проверяем, что сохраняем в память
 
                 val inlineKeyboardMarkup = InlineKeyboardMarkup.create(
                     listOf(
@@ -166,7 +199,8 @@ class YogaAdminBot {
                     text = "Ты добавляешь - $newUserString, верно? \nЕсли неверно, введи имя_дату_уроки ещё раз.",
                     replyMarkup = inlineKeyboardMarkup
                 )
-            }
+                return@message //пробуем прекратить многократную обработку сообщений
+            } //конец функции message
             return@callbackQuery
         }//конец коллбека addStudent
 
@@ -176,7 +210,8 @@ class YogaAdminBot {
             if (!newUserString.matches(Regex("^[^\\s]*\\s[^\\s]*\\s[^\\s]*$"))) //если строка НЕ содержит 2 пробела
             {
                 bot.sendMessage(chatId = ChatId.fromId(chatId),
-                    text = "ОШИБКА В СТРОКЕ!\nВведи через пробел:\nТелегам-имя йогини,\nДату окончания абонемента и\nколичество оплаченных уроков")
+                    text = "ОШИБКА В СТРОКЕ!\nВведи через пробел:\nТелегам-имя йогини,\nДату окончания абонемента и" +
+                            "\nКоличество оплаченных уроков")
             } else {//т.к. строка содержит 2 пробела, проверяем на повторное внесение
                 if (getNamesFromFile().contains(newUserString.split(" ")[0])) { //проверяем имя на повтор
                     println("Повторное внесение!!!")
@@ -206,8 +241,6 @@ class YogaAdminBot {
             return@callbackQuery
         }//конец коллбека confirmCreating
 
-
-
         callbackQuery(callbackData = "restart") {//коллбек restart
             val chatId = callbackQuery.message?.chat?.id ?: return@callbackQuery
             bot.sendMessage(chatId = ChatId.fromId(chatId), text = "Для начала работы введите /start")
@@ -215,11 +248,7 @@ class YogaAdminBot {
         }//конец коллбека restart
     }//Конец Диспетчера всех Коллбеков
 
-    private fun deleteStudentFromFile(newStudentString: Message?): Boolean {
-        TODO("Not yet implemented")
-    }
-
-
+    //тут начинаются функции
     private fun getNamesFromFile(): String { //функция чтения имен пользователей в группе
         val messageFile = "src/yogaList.txt"  // !!Replace with the actual file name
         var names = ""
@@ -230,7 +259,7 @@ class YogaAdminBot {
         }
             //result is ready :)
     if (names.isEmpty())    names = "В группе нет учеников :( "
-        println(names) //проверяем работу функции
+        //println(names) //проверяем работу функции
         return names.dropLast(1) //we don't need the last "\n
     } //конец функции чтения имен пользователей в группе
 
@@ -254,10 +283,9 @@ class YogaAdminBot {
 
     private fun Dispatcher.setUpCommands() {
         command("start") {
-            // chatStates[message.chat.id] = ChatState.START
-            println("1 User name: " + message.chat.firstName + " ChatID: " + message.chat.id + " MessageID: " + message.messageId + " SenderChatId: " + message.senderChat?.id)
-            //проверка на Учителя "819577258" (временно меняю на свой ID)
-            if (message.chat.id.toString() == "433077424")
+            //println("1 User name: " + message.chat.firstName + " ChatID: " + message.chat.id + " MessageID: " + message.messageId + " SenderChatId: " + message.senderChat?.id)
+            //проверка на Учителя "819577258" (для тестирования меняю на свой ID 433077424)
+            if (message.chat.id.toString() == "819577258")
             {
                 val inlineKeyboardMarkup = InlineKeyboardMarkup.create(
                     listOf(
@@ -268,8 +296,8 @@ class YogaAdminBot {
                     ),
                     listOf(
                         InlineKeyboardButton.CallbackData(
-                            text = "Редактировать абонементы",
-                            callbackData = "membershipEdit"
+                            text = "Посещения без записи",
+                            callbackData = "surpriseLessons"
                         )
                     ),
                     listOf(
@@ -280,9 +308,11 @@ class YogaAdminBot {
                     )
                 )
                 val chatId = message.chat.id
+
                 bot.sendMessage(
                     chatId = ChatId.fromId(chatId),
-                    text = "Выбери команду, Учитель",
+                    text = "Твоя группа: \n${getNamesFromFile()}" +
+                            "\nВыбери команду, Учитель",
                     replyMarkup = inlineKeyboardMarkup
                 )
             }//конец функции start для Учителя
