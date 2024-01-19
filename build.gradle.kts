@@ -16,6 +16,7 @@ repositories {
 dependencies {
     // Telegram bot api
     implementation("io.github.kotlin-telegram-bot.kotlin-telegram-bot:telegram:6.0.6")
+    implementation ("org.telegram:telegrambots:5.1.1")
     // Coroutines
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.6.0")
     // Retrofit
