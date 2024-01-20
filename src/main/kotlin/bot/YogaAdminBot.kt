@@ -16,13 +16,21 @@ import java.io.FileWriter
 import java.io.IOException
 
 class YogaAdminBot {
+    val botUsers = mutableMapOf<Long, String>() //создаём карту для хранения пользователей и их chatID
+    val lessonConfirms = mutableSetOf<String>() //создаём набор для хранения пользователей, кто подтвердил свой приход
+
+
     fun createBot(): Bot {
         return bot {
             token = "6786187377:AAGoTGeWMfW_9bKCqFFxs-MX2I5eEmbEoV0"
             timeout = 30
-
+            // Добавление значений в карту
+            botUsers[819577258L] = "Катерина"
+            botUsers[433077424L] = "Kosstyango"
+            //botUsers[1029836532L] = "mkssm"
 
             dispatch {
+
                 setUpCommands()
                 setUpCallbacks()
             }
@@ -30,6 +38,62 @@ class YogaAdminBot {
     }
 
     private fun Dispatcher.setUpCallbacks() {
+//refuseLesson
+        callbackQuery(callbackData = "refuseLesson") {//коллбек refuseLesson
+            val chatId = callbackQuery.message?.chat?.id ?: return@callbackQuery
+            val name = callbackQuery.message?.chat?.firstName ?: return@callbackQuery
+            println("Фиксируем отказ от пользователя $name из чата $chatId")
+            bot.sendMessage(
+                chatId = ChatId.fromId(chatId),
+                text = "Понял. Но ты знай:\nнам тебя будет не хватать :("
+            )
+            return@callbackQuery
+        }//конец коллбека refuseLesson
+
+//confirmLesson
+        callbackQuery(callbackData = "confirmLesson") {//коллбек confirmLesson
+            val chatId = callbackQuery.message?.chat?.id ?: return@callbackQuery
+            val name = callbackQuery.message?.chat?.firstName ?: return@callbackQuery
+            println("Записываем подтверждение от пользователя $name из чата $chatId")
+            lessonConfirms.add(name) //добавляем пользователя в список на завтра
+            println(lessonConfirms.toString()) //проверяем, что у нас уже есть в списке
+                bot.sendMessage(
+                    chatId = ChatId.fromId(chatId),
+                    text = "Супер!!! До встречи на коврике завтра!"
+                )
+            return@callbackQuery
+        }//конец коллбека confirmLesson
+
+        callbackQuery(callbackData = "lessonInvite") {//коллбек lessonInvite
+            lessonConfirms.clear() //обнуляем список
+            println("Начинаем цикл извещений пользователей из карты")
+            println("Пока в списке: ${lessonConfirms.toString()}")
+            for ((chatId, userName) in botUsers) {
+                //println("Извещаем йогиню $userName...") //проверяем, кому отправляем извещение
+                val inlineKeyboardMarkup = InlineKeyboardMarkup.create(
+                    listOf(
+                        InlineKeyboardButton.CallbackData(
+                            text = "Конечно, да!!!",
+                            callbackData = "confirmLesson"
+                        )
+                    ),
+                    listOf(
+                        InlineKeyboardButton.CallbackData(
+                            text = "Нет, завтра не смогу :(",
+                            callbackData = "refuseLesson"
+                        )
+                    )
+                )
+                bot.sendMessage(
+                    chatId = ChatId.fromId(chatId),
+                    text = "Привет, моя йогиня $userName, \nзавтра у нас тренировка. \nТы придёшь?",
+                    replyMarkup = inlineKeyboardMarkup
+                )
+
+            }
+            return@callbackQuery
+        }//конец коллбека lessonInvite
+
         callbackQuery(callbackData = "groupEdit") { //редактирование группы Учителем
             val chatId = callbackQuery.message?.chat?.id ?: return@callbackQuery
             val inlineKeyboardMarkup = InlineKeyboardMarkup.create(
@@ -368,11 +432,6 @@ class YogaAdminBot {
 
 
     private fun Dispatcher.setUpCommands() {
-        val botUsers = mutableMapOf<Long, String>() //создаём карту для хранения пользователей и их chatID
-        // Добавление значений в карту
-        botUsers[819577258L] = "Катерина"
-        botUsers[433077424L] = "Kosstyango"
-        botUsers[1029836532L] = "mkssm"
 
         command("start") {
             println("User firstName: " + message.chat.firstName + " ChatID: " + message.chat.id +
