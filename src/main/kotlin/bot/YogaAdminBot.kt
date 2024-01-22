@@ -39,6 +39,9 @@ class YogaAdminBot {
             botUsers[661960705L] = "inna_monte"
             botUsers[240043550L] = "nastya_pianykh"
             botUsers[387174886L] = "ОльгаМафия"
+            botUsers[1229738863L] = "Sokolova_Gz"
+            botUsers[702640753L] = "Maryna_Stepanova"
+            botUsers[5193993330L] = "Alena"
 
             dispatch {
                 setUpCommands()
