@@ -626,6 +626,12 @@ class YogaAdminBot {
             botUsers[message.chat.id] = message.chat.username.toString() //запоминаем всех, кто зашёл в бот
             println("В карте извещений уже ${botUsers.size} человек:\n$botUsers") //проверяем, как работает карта
 
+            // Удаляем все сообщения, кроме последнего
+            for (i in 0 until message.messageId - 1) {
+                bot.deleteMessage(chatId = ChatId.fromId(message.chat.id), messageId = message.messageId)
+                println("\rУдаляем сообщение ${message.chat.id}") //проверяем, как работает удаление
+            }
+
             //проверка на Учителя "819577258" (для тестирования меняю на свой ID 433077424)
             if (message.chat.id.toString() == "819577258") {
                 val inlineKeyboardMarkup = InlineKeyboardMarkup.create(
