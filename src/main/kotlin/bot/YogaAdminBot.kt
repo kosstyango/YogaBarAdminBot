@@ -6,6 +6,7 @@ import com.github.kotlintelegrambot.dispatch
 import com.github.kotlintelegrambot.dispatcher.*
 import com.github.kotlintelegrambot.entities.ChatId
 import com.github.kotlintelegrambot.entities.InlineKeyboardMarkup
+import com.github.kotlintelegrambot.entities.MessageId
 import com.github.kotlintelegrambot.entities.keyboard.InlineKeyboardButton
 import com.github.kotlintelegrambot.extensions.filters.Filter
 import java.io.BufferedReader
@@ -22,6 +23,9 @@ class YogaAdminBot {
     val file = File(messageFile)
     var lastProcessedMessageId: Long = 0
     var nameToGift = ""
+    var reasonToGift = ""
+    var nameToDelete = ""
+    var newUserString = ""
     lateinit var namesToCount: Array<String>
 
     fun createBot(): Bot {
@@ -30,18 +34,22 @@ class YogaAdminBot {
             timeout = 30
             // Добавление значений в карту для приглашений на тренировку
             botUsers[513452246L] = "TatianaEmpathy"
-            botUsers[6807894410L] = "ОльгаАракчеева"
+            botUsers[6807894410L] = "montephotoli" //Ольга
             botUsers[1358731501L] = "Antoninatrue"
             botUsers[320480020L] = "KolotyukLubov"
             botUsers[940460912L] = "Antonina_Korablina"
             botUsers[227790650L] = "Kate"
-            botUsers[1340340105L] = "wveronik"
+                //   botUsers[1340340105L] = "wveronik" 1340340105
             botUsers[661960705L] = "inna_monte"
             botUsers[240043550L] = "nastya_pianykh"
-            botUsers[387174886L] = "ОльгаМафия"
+            botUsers[387174886L] = "Olga"  //мафия
             botUsers[1229738863L] = "Sokolova_Gz"
             botUsers[702640753L] = "Maryna_Stepanova"
-            botUsers[5193993330L] = "Alena"
+            botUsers[5193993330L] = "Алена"
+            botUsers[869290791L] = "AnnaQ2"
+            botUsers[1022725346L] = "OlgaK_0"
+//            botUsers[300037736L] = "Camarada" //Денис
+//            botUsers[433077424L] = "Kosstyngo" //Костя
 
             dispatch {
                 setUpCommands()
@@ -114,20 +122,29 @@ class YogaAdminBot {
         }//конец коллбека confirmCount
 
 //surpriseLessons
-callbackQuery(callbackData = "surpriseLessons") {//коллбек surpriseLessons
-            println("ДО убавления уроков группа выглядит так: ${file.readText()}")
+        callbackQuery(callbackData = "surpriseLessons") {//коллбек surpriseLessons
             val chatId = callbackQuery.message?.chat?.id ?: return@callbackQuery
+            val fileContent = file.readText()
+            if (!lessonConfirms.all { word -> fileContent.contains(word) }) //если НЕ все слова из списка содержатся в файле
+            {
+                bot.sendMessage(
+                    chatId = ChatId.fromId(chatId),
+                    text = "ОШИБКА: Не могу найти некоторых йогинь в группе :(\nПроверь список, Учитель"
+                )
+                return@callbackQuery
+            }
+            println("ДО убавления уроков группа выглядит так: ${file.readText()}")
             for (userName in lessonConfirms) { //убавляем одно занятие из абонемента каждого, кто записался на урок
-                println("пробуем убавить 1 урок у йогини $userName")
+                println("пробуем убавить урок у йогини $userName")
                 try {
                     val lines = FileReader(messageFile).readLines()
-                    println("Построчный файл yogaList: $lines")
+                    //println("Построчный файл yogaList: \n$lines")
                     var lessons = getDataFromFile(userName, 2).toInt()
                     lessons-- //убавление занятий
                     // Изменение строки, начинающейся с имени зарегистрированного на урок
                     val updatedLines = lines.map { line ->
                         if (line.startsWith(userName)) {
-                            println("Берём строку $line:")
+                            println("Берём строку $line: ")
                             val words = line.split("\\s+".toRegex())
                             if (words.size >= 3) {
                                 // Замена третьего слова
@@ -152,7 +169,7 @@ callbackQuery(callbackData = "surpriseLessons") {//коллбек surpriseLesson
                chatId = ChatId.fromId(chatId),
                text = "На сегодня записывались: $lessonConfirms \n" +
                        "Их абонементы уже обновлены.\n" +
-                       "Внеси ЧЕРЕЗ ПРОБЕЛ имена йогинь, которые пришли БЕЗ> записи:")
+                       "Внеси ЧЕРЕЗ ПРОБЕЛ имена йогинь, которые пришли БЕЗ записи:")
 
     for (userName in lessonConfirms){ //извещаем йогинь об убавлении оплаченных уроков
         if (getDataFromFile(userName, 3) != null) { //если у йогини указан номер чата
@@ -197,9 +214,19 @@ callbackQuery(callbackData = "surpriseLessons") {//коллбек surpriseLesson
             //а если он и firstName как-то скрыл, то идентифиццировать его будем по номеру чата
             ?: callbackQuery.message?.chat?.id.toString()
             println("Фиксируем отказ от пользователя $name из чата $chatId")
+
+            val str = if ((getDataFromFile(name, 2)).toInt() > 20) "БЕЗЛИМИТ" else (getDataFromFile(name, 2)+" уроков")
             bot.sendMessage(
                 chatId = ChatId.fromId(chatId),
-                text = "Понял. Но ты знай:\nнам тебя будет не хватать :(")
+                text = "Понял. Но ты знай: нам тебя будет не хватать :(\n" +
+                        "У тебя $str до ${getDataFromFile(name, 1)}" +
+                        "\nДля возврата в меню нажми /start")
+
+            //bot.deleteMessage(ChatId.fromId(chatId), callbackQuery.message?.messageId )
+
+            bot.sendMessage(
+                chatId = ChatId.fromId(819577258), // извещаем Учителя
+                text = "Йогиня $name завтра не придёт.")
             return@callbackQuery
         }//конец коллбека refuseLesson
 
@@ -212,14 +239,18 @@ callbackQuery(callbackData = "surpriseLessons") {//коллбек surpriseLesson
             ?: callbackQuery.message?.chat?.id.toString()
             println("Записываем подтверждение от пользователя $name из чата $chatId")
             lessonConfirms.add(name) //добавляем пользователя в список на завтра
-            println(lessonConfirms.toString()) //проверяем, что у нас уже есть в списке
-                bot.sendMessage(
+            println("В списке подвержденных уже ${lessonConfirms.size} человек: $lessonConfirms") //проверяем, что у нас уже есть в списке
+            bot.sendMessage(
                     chatId = ChatId.fromId(819577258), // извещаем Учителя
                     text = "На тренировку записалась йогиня $name.")
-            println(lessonConfirms.toString()) //проверяем, что у нас уже есть в списке
-                bot.sendMessage(
+            //println(lessonConfirms.toString()) //проверяем, что у нас уже есть в списке
+
+            val str = if ((getDataFromFile(name, 2)).toInt() > 20) "БЕЗЛИМИТ" else (getDataFromFile(name, 2)+" уроков")
+            bot.sendMessage(
                     chatId = ChatId.fromId(chatId), // подтверждаем запись йогине
-                    text = "Супер!!! До встречи на коврике завтра!")
+                    text = "Супер!!! До встречи на коврике завтра!\n" +
+                            "У тебя $str до ${getDataFromFile(name, 1)}" +
+                            "\nДля воврата в главное меню нажми /start")
             return@callbackQuery
         }//конец коллбека confirmLesson
 
@@ -233,21 +264,15 @@ callbackQuery(callbackData = "surpriseLessons") {//коллбек surpriseLesson
                     listOf(
                         InlineKeyboardButton.CallbackData(
                             text = "Конечно, да!!!",
-                            callbackData = "confirmLesson"
-                        )
-                    ),
+                            callbackData = "confirmLesson")),
                     listOf(
                         InlineKeyboardButton.CallbackData(
                             text = "Нет, завтра не смогу :(",
-                            callbackData = "refuseLesson"
-                        )
-                    )
-                )
+                            callbackData = "refuseLesson")))
                 bot.sendMessage(
                     chatId = ChatId.fromId(chatId),
                     text = "Привет, моя йогиня $userName, \nзавтра у нас тренировка. \nТы придёшь?",
                     replyMarkup = inlineKeyboardMarkup)
-
             }
             return@callbackQuery
         }//конец коллбека lessonInvite
@@ -258,22 +283,15 @@ callbackQuery(callbackData = "surpriseLessons") {//коллбек surpriseLesson
                 listOf(
                     InlineKeyboardButton.CallbackData(
                         text = "Удалить Йогиню",
-                        callbackData = "deleteStudent"
-                    )
-                ),
+                        callbackData = "deleteStudent")),
                 listOf(
                     InlineKeyboardButton.CallbackData(
                         text = "Добавить Йогиню",
-                        callbackData = "addStudent"
-                    )
-                ),
+                        callbackData = "addStudent")),
                 listOf(
                     InlineKeyboardButton.CallbackData(
                         text = "Back to Menu",
-                        callbackData = "restart"
-                    )
-                )
-            )
+                        callbackData = "restart")))
             bot.sendMessage(
                 chatId = ChatId.fromId(chatId),
                 text = "Что выбираешь, Учитель?",
@@ -341,34 +359,38 @@ callbackQuery(callbackData = "surpriseLessons") {//коллбек surpriseLesson
             val chatId = callbackQuery.message?.chat?.id ?: return@callbackQuery
             lastProcessedMessageId = callbackQuery.message?.messageId!! //сохраняем номер обрабатываемого сообщения
             bot.sendMessage(chatId = ChatId.fromId(chatId),
-                text = "Кого одариваем?")
+                text = "Введи ЧЕРЕЗ ПРОБЕЛ: Кого одариваем и По какому поводу?")
 
             message(Filter.Text) {//приём ответа от Учителя
                 val messageId = callbackQuery.message?.messageId ?: return@message
                 //println("Callback giftLesson проверяет номер сообщения: ${messageId} меньше ${lastProcessedMessageId}?")
                 if (messageId < lastProcessedMessageId) return@message //попытка предотвратить повторные обработки ответов
                 //println("Callback giftLesson отвечает на сообщение № ${messageId}")
-
-                nameToGift = message.text.toString()
-                println("одариваем $nameToGift")//проверяем, что собираемся одарить
-                val inlineKeyboardMarkup = InlineKeyboardMarkup.create(
-                    listOf(
-                        InlineKeyboardButton.CallbackData(
-                            text = "Да, верно.",
-                            callbackData = "confirmGift"
-                        )
-                    )
-                )
-                bot.sendMessage(
-                    chatId = ChatId.fromId(chatId),
-                    text = "Ты решила одарить - $nameToGift, верно? \nЕсли неверно, введи имя йогини ещё раз.",
-                    replyMarkup = inlineKeyboardMarkup)
+                if(!message.text.toString().contains(" "))//проверем, что в строке есть пробел
+                {
+                    bot.sendMessage(chatId = ChatId.fromId(chatId),
+                        text = "Ошибка: надо ввести Имя йогини и Повод ЧЕРЕЗ ПРОБЕЛ")
+                }else {
+                    nameToGift = message.text.toString().substringBefore(" ")
+                    reasonToGift = message.text.toString().substringAfter(" ")
+                    println("одариваем $nameToGift по поводу: $reasonToGift")//проверяем, кого и за что собираемся одарить
+                    val inlineKeyboardMarkup = InlineKeyboardMarkup.create(
+                        listOf(
+                            InlineKeyboardButton.CallbackData(
+                                text = "Да, верно.",
+                                callbackData = "confirmGift")))
+                    bot.sendMessage(
+                        chatId = ChatId.fromId(chatId),
+                        text = "Ты решила одарить - $nameToGift по поводу - $reasonToGift, верно? " +
+                                "\nЕсли неверно, введи имя йогини ещё раз.",
+                        replyMarkup = inlineKeyboardMarkup)
+                }//конец else
                 return@message //пробуем прекратить многократную обработку сообщений
             }
             return@callbackQuery
         }//конец коллбека giftLesson
 
-
+        // коллбек confirmGift
         callbackQuery(callbackData = "confirmGift") {//коллбек confirmGift
             val chatId = callbackQuery.message?.chat?.id ?: return@callbackQuery
 
@@ -409,12 +431,14 @@ callbackQuery(callbackData = "surpriseLessons") {//коллбек surpriseLesson
                 println("Йогиня $nameToGift имеет адрес ${getDataFromFile(nameToGift, 3)} и может быть извещена")
                 val newChatId : Long = getDataFromFile(nameToGift, 3).toLong()
                 bot.sendMessage(chatId = ChatId.fromId(newChatId),
-                    text = "Привет, $nameToGift! \nУчитель подарил тебе бесплатный Урок, поздравляю!!")
+                    text = "Привет, $nameToGift! " +
+                            "\nУчитель подарил тебе бесплатный Урок!" +
+                            "\nПовод: $reasonToGift. Поздравляю!!!")
             }
             return@callbackQuery
         }//конец коллбека confirmGift
 
-        var nameToDelete = ""
+        //коллбек deleteStudent
         callbackQuery(callbackData = "deleteStudent") {//коллбек deleteStudent
             val chatId = callbackQuery.message?.chat?.id ?: return@callbackQuery
             lastProcessedMessageId = callbackQuery.message?.messageId!! //сохраняем номер обрабатываемого сообщения
@@ -479,7 +503,6 @@ callbackQuery(callbackData = "surpriseLessons") {//коллбек surpriseLesson
             return@callbackQuery
         }//конец коллбека confirmDeleting
 
-        var newUserString = ""
         callbackQuery(callbackData = "addStudent") {//коллбек addStudent
             val chatId = callbackQuery.message?.chat?.id ?: return@callbackQuery
             lastProcessedMessageId = callbackQuery.message?.messageId!! //сохраняем номер обрабатываемого сообщения
@@ -593,11 +616,15 @@ callbackQuery(callbackData = "surpriseLessons") {//коллбек surpriseLesson
     private fun Dispatcher.setUpCommands() {
 
         command("start") {
-            println("UserName: " + message.chat.username + " FirstName: " + message.chat.firstName + " ChatID: " + message.chat.id +
-                    " MessageID: " + message.messageId)
+            //если пользователь скрыл свой username, мы его будем идентифицировать по его firstName:
+            val name = message.chat.username ?: message.chat.firstName
+            //а если он и firstName как-то скрыл, то идентифиццировать его будем по номеру чата:
+            ?: message.chat.id.toString()
+            //показываем пользователя в консоли
+            println("В бот обратился пользователь: $name, его ChatID: ${message.chat.id}, язык для общения: ${message.from?.languageCode}")
 
             botUsers[message.chat.id] = message.chat.username.toString() //запоминаем всех, кто зашёл в бот
-            println(botUsers.toString()) //проверяем, как работает карта
+            println("В карте извещений уже ${botUsers.size} человек:\n$botUsers") //проверяем, как работает карта
 
             //проверка на Учителя "819577258" (для тестирования меняю на свой ID 433077424)
             if (message.chat.id.toString() == "819577258") {
